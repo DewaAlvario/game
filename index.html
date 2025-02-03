@@ -115,6 +115,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['participantId']) && is
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+    import { Analytics } from "@vercel/analytics/react";
     let score = 0;
     let lives = 3;
     let timeLeft = 0;
@@ -169,6 +170,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['participantId']) && is
         });
     }
 </script>
-
+<Analytics />
 </body>
 </html>
