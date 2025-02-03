@@ -1,17 +1,26 @@
 <?php
-include "dbconn/dbconn.php";
+// Database Configuration
+$servername = "localhost";
+$username = "root";
+$password = "";
+$namadb = "detective_academia";
 
+// Membuat koneksi ke MySQL
+$conn = new mysqli($servername, $username, $password);
+
+// Cek koneksi
 if ($conn->connect_error) {
     die("Koneksi gagal: " . $conn->connect_error);
 }
 
-// Buat database jika belum ada
-$namadb = "detective_academia";
+// Membuat database jika belum ada
 $makedb = "CREATE DATABASE IF NOT EXISTS $namadb";
 $conn->query($makedb);
+
+// Pilih database
 $conn->select_db($namadb);
 
-// Buat tabel jika belum ada
+// Membuat tabel jika belum ada
 $buatTabel = "CREATE TABLE IF NOT EXISTS results (
     ID INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     nmrID VARCHAR(50) NOT NULL,
@@ -19,29 +28,20 @@ $buatTabel = "CREATE TABLE IF NOT EXISTS results (
 )";
 $conn->query($buatTabel);
 
-// Proses penyimpanan skor
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if (!isset($_POST['participantId']) || !isset($_POST['score'])) {
-        echo json_encode(["status" => "error", "message" => "Data tidak lengkap"]);
-        exit();
-    }
-
+// Proses penyimpanan skor ke database (jika ada request POST)
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['participantId']) && isset($_POST['score'])) {
     $nmrID = trim($_POST['participantId']);
     $score = intval($_POST['score']);
 
+    // Pastikan ID dan skor valid
     if (empty($nmrID) || strlen($nmrID) < 4) {
         echo json_encode(["status" => "error", "message" => "ID peserta tidak valid"]);
         exit();
     }
 
     $stmt = $conn->prepare("INSERT INTO results (nmrID, score) VALUES (?, ?)");
-    if ($stmt === false) {
-        echo json_encode(["status" => "error", "message" => "Error dalam prepare statement"]);
-        exit();
-    }
-
     $stmt->bind_param("si", $nmrID, $score);
-    
+
     if ($stmt->execute()) {
         echo json_encode(["status" => "success", "message" => "Data berhasil disimpan!"]);
     } else {
@@ -49,9 +49,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     $stmt->close();
+    exit();
 }
 ?>
-
 
 <!DOCTYPE html>
 <html lang="id">
