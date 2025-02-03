@@ -1,225 +1,174 @@
 <?php
-    include "dbconn/dbconn.php";
+// Database Configuration
+$servername = "localhost";
+$username = "root";
+$password = "";
+$namadb = "detective_academia";
+
+// Membuat koneksi ke MySQL
+$conn = new mysqli($servername, $username, $password);
+
+// Cek koneksi
+if ($conn->connect_error) {
+    die("Koneksi gagal: " . $conn->connect_error);
+}
+
+// Membuat database jika belum ada
+$makedb = "CREATE DATABASE IF NOT EXISTS $namadb";
+$conn->query($makedb);
+
+// Pilih database
+$conn->select_db($namadb);
+
+// Membuat tabel jika belum ada
+$buatTabel = "CREATE TABLE IF NOT EXISTS results (
+    ID INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    nmrID VARCHAR(50) NOT NULL,
+    score INT NOT NULL
+)";
+$conn->query($buatTabel);
+
+// Proses penyimpanan skor ke database (jika ada request POST)
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['participantId']) && isset($_POST['score'])) {
+    $nmrID = trim($_POST['participantId']);
+    $score = intval($_POST['score']);
+
+    // Pastikan ID dan skor valid
+    if (empty($nmrID) || strlen($nmrID) < 4) {
+        echo json_encode(["status" => "error", "message" => "ID peserta tidak valid"]);
+        exit();
+    }
+
+    $stmt = $conn->prepare("INSERT INTO results (nmrID, score) VALUES (?, ?)");
+    $stmt->bind_param("si", $nmrID, $score);
+
+    if ($stmt->execute()) {
+        echo json_encode(["status" => "success", "message" => "Data berhasil disimpan!"]);
+    } else {
+        echo json_encode(["status" => "error", "message" => "Gagal menyimpan data: " . $stmt->error]);
+    }
+
+    $stmt->close();
+    exit();
+}
 ?>
 
+<!DOCTYPE html>
 <html lang="id">
-    <head>
-        
-        <link href="main.css" rel="stylesheet">
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Detective Academia</title>
-        <link rel="stylesheet" href="style.css">
-        <style>
-            #translator-links-container a {
-                display: inline-block;
-                margin: 0 10px;
-            }
-        </style>
-    </head>
-    <body>
-        <?php
-        $id = $skor = 0;
-        ?>
-        <div id="start-screen">
-        <h1>Selamat Datang di Kuis Detective Academia</h1>
-        <p>Masukkan ID Peserta:</p>
-        <input type="text" id="participant-id" placeholder="Masukkan ID Anda">
-        <p>Pilih Karakter Anda:</p>
-        <form id="start-form">
-            <div class="radio-container">
-                <input type="radio" id="A" name="karakter" value="spectre">
-                <label for="A">Specter</label>
-                <input type="radio" id="B" name="karakter" value="Zarena">
-                <label for="B">Zarena</label>
-            </div>
-            <br>
-            <input type="submit" value="Submit" class="sub" id="submit">    
-        </form>
-    </div>
+<head>
+    <link href="main.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detective Academia</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        #translator-links-container a {
+            display: inline-block;
+            margin: 0 10px;
+        }
+    </style>
+</head>
+<body>
 
-    <div id="quiz-container" style="display:none;">
-        <div class="header">
-            <div class="header-left">
-                <div id="display-id">ID: <span id="participant-display-id"></span></div>
-                <div id="lives-container" class="lives-container"></div>
-            </div>
-            <div id="timer">Waktu: <span id="timer-display">0</span> detik</div>
+<div id="start-screen">
+    <h1>Selamat Datang di Kuis Detective Academia</h1>
+    <p>Masukkan ID Peserta:</p>
+    <input type="text" id="participant-id" placeholder="Masukkan ID Anda">
+    <p>Pilih Karakter Anda:</p>
+    <form id="start-form">
+        <div class="radio-container">
+            <input type="radio" id="A" name="karakter" value="spectre">
+            <label for="A">Specter</label>
+            <input type="radio" id="B" name="karakter" value="Zarena">
+            <label for="B">Zarena</label>
         </div>
-        <div id="question-container">
-            <p id="question"></p>
-            <div id="translator-links-container" style="display:none;"></div>
-            <div class="answer-section">
-                <input type="text" id="answer1" placeholder="Jawaban 1">
-                <input type="text" id="answer2" placeholder="Jawaban 2">
-                <button onclick="checkAnswer()" name="submit">Submit</button>
-                <p id="error-message" style="color:red; display:none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%);">Jawaban salah, coba lagi!</p>
-            </div>
+        <br>
+        <input type="submit" value="Submit" class="sub" id="submit">    
+    </form>
+</div>
+
+<div id="quiz-container" style="display:none;">
+    <div class="header">
+        <div class="header-left">
+            <div id="display-id">ID: <span id="participant-display-id"></span></div>
+            <div id="lives-container" class="lives-container"></div>
+        </div>
+        <div id="timer">Waktu: <span id="timer-display">0</span> detik</div>
+    </div>
+    <div id="question-container">
+        <p id="question"></p>
+        <div id="translator-links-container" style="display:none;"></div>
+        <div class="answer-section">
+            <input type="text" id="answer1" placeholder="Jawaban 1">
+            <input type="text" id="answer2" placeholder="Jawaban 2">
+            <button onclick="checkAnswer()">Submit</button>
+            <p id="error-message" style="color:red; display:none;">Jawaban salah, coba lagi!</p>
         </div>
     </div>
+</div>
 
-    <div id="result-page" style="display:none; text-align: center;">
-        <h1>Hasil Kuis</h1>
-        <p>ID Peserta: <span id="result-id" name="result-id"></span></p>
-        <p>Skor Akhir: <span id="final-score" name="final-score"></span></p>
-    </div>
+<div id="result-page" style="display:none; text-align: center;">
+    <h1>Hasil Kuis</h1>
+    <p>ID Peserta: <span id="result-id"></span></p>
+    <p>Skor Akhir: <span id="final-score"></span></p>
+</div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
-        import { Analytics } from '@vercel/analytics/react';
-        let score = 0;
-        let lives = 3;
-        let timeLeft = 0;
-        let timerInterval;
-        let participantId;
-        let currentQuestionIndex = 0;
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    let score = 0;
+    let lives = 3;
+    let timeLeft = 0;
+    let timerInterval;
+    let participantId;
 
-        const questions = [
-            { 
-                question: "suasana pagi yang tenang di Jalan Gatot Subroto, Cimahi tiba-tiba kacau dibuatnya ketika tiga perampok bersenjata melakukan perampokan ke Bank OCBC. Dalam sekejap, sang satpam berada dalam keadaan lumpuh dan beberapa nasabah dibawa sebagai sandera. Setelah brankas dirampas, mereka segera meninggalkannya dalam mobil van hitam dan kabur, melewati (klik link dibawah agar mengetahui jawaban nya)", 
-                answer: ["tol baros"],
-                hasTranslator: true,
-                translatorLinks: ["translator.php"]
+    document.getElementById('start-form').onsubmit = function(event) {
+        event.preventDefault();
+        participantId = document.getElementById('participant-id').value.trim();
+        const selectedCharacter = document.querySelector('input[name="karakter"]:checked');
+
+        if (participantId.length < 4) {
+            alert('ID harus minimal 4 karakter!');
+            return;
+        }
+        if (!selectedCharacter) {
+            alert('Pilih karakter Anda!');
+            return;
+        }
+
+        document.getElementById('participant-display-id').textContent = participantId;
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('quiz-container').style.display = 'block';
+        startTimer();
+    };
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        timeLeft = 0;
+        timerInterval = setInterval(() => {
+            timeLeft++;
+            document.getElementById('timer-display').textContent = timeLeft;
+        }, 1000);
+    }
+
+    function endQuiz() {
+        document.getElementById('quiz-container').style.display = 'none';
+        document.getElementById('result-page').style.display = 'block';
+        document.getElementById('result-id').textContent = participantId;
+        document.getElementById('final-score').textContent = score;
+
+        $.ajax({
+            url: 'index.php',
+            type: 'POST',
+            data: { participantId: participantId, score: score },
+            success: function(response) {
+                console.log(response);
             },
-
-            { 
-                question: "dengan laporan segera, mobil patroli melacak van hitam itu ke (klik link 1). Mobil patroli berusaha memepet van menggunakan sirine tetapi beberapa perampok memperingatkan mereka dengan manuver di tol, menimbulkan kemacetan lalu lintas di belakang van. Tembakan peringatan dikeluarkan namun mereka melewatinya dan akhirnya keluar di gate tol Pasteur sekadar. Dengan kepala bersama, mereka memasuki Jalan (klik link 2)", 
-                answer: ["tol pasteur", "dr.djunjunan"],
-                hasTranslator: true,
-                translatorLinks: ["translator2.php", "translator3.php"]
-            },
-
-            { 
-                question: "Di tengah hiruk-pikuknya lalu lintas Dago, mereka keluar dari van dan menyelinap masuk ke jalan-jalan kecil di sekitar (klik link 1). Polisi G berpencar dan dihadapkan pada salah satu perampok yang dilumpuhkan karena tertembak. Dua perampok lainnya memasuki sepeda motor yang sudah mereka siapkan dan melalui (klik link 2)", 
-                answer: ["ITB", "Ir.H.Juanda"],
-                hasTranslator: true,
-                translatorLinks: ["translator4.php", "translator5.php"]
-            },
-
-            { 
-                question: "salah satu perampok yang tersisa mengarah ke halaman belakang dari (1) dan mendapatkan pintu tersembunyi di sebelah dinding yang digunakan untuk memasuki terowongan di belakangnya. Polisi yang mengikuti mereka menemukannya dan memasukinya, melanjutkan pengejaran di dalam lorong gelap yang dipenuhi cabang di kiri-kanan dan sekitar rumah sakit Borromeus.", 
-                answer: ["Rumah Sakit Borromeus", "Rumah Sakit Borromeus"],
-                hasTranslator: true,
-                translatorLinks: ["translator6.php"]
-            }, 
-            { 
-                question: "kejaran berakhir dengan hasil yang bagus ketika mereka masuk ke sebuah ruangan besar yang digunakan untuk markas perampok di bawah tanah. Barang-barang rampasan mereka disebar di mana-mana. Sebuah baku tembak dimulai dan dua perampok dilumpuhkan. Barang bukti dikumpulkan dari lapangan dan perampok dibawa keluar untuk interogasi, menyelesaikan pengejaran di bawah tanah dan markas persembunyian di bawah Rumah Sakit Borromeus. dan dibawa ke (1) untuk di tindak lanjuti.", 
-                answer: ["polsek bandung wetan", "polsek bandung wetan"],
-                hasTranslator: true,
-                translatorLinks: ["translator7.php"]
+            error: function(xhr, status, error) {
+                console.error("Error:", error);
             }
-        ];
+        });
+    }
+</script>
 
-        document.getElementById('start-form').onsubmit = function(event) {
-            event.preventDefault();
-            participantId = document.getElementById('participant-id').value.trim();
-            const selectedCharacter = document.querySelector('input[name="karakter"]:checked');
-
-            if (participantId.length < 4) {
-                alert('ID harus minimal 4 karakter!');
-                return;
-            }
-            if (!selectedCharacter) {
-                alert('Pilih karakter Anda!');
-                return;
-            }
-
-            document.getElementById('participant-display-id').textContent = participantId;
-            document.getElementById('start-screen').style.display = 'none';
-            document.getElementById('quiz-container').style.display = 'block';
-            startTimer();
-            lives = selectedCharacter.value === 'bonus' ? 3 : 5;
-            updateLives();
-            loadQuestion();
-        };
-
-        function startTimer() {
-            clearInterval(timerInterval);
-            timeLeft = 0;
-            timerInterval = setInterval(() => {
-                timeLeft++;
-                document.getElementById('timer-display').textContent = timeLeft;
-            }, 1000);
-        }
-
-        function updateLives() {
-            const container = document.getElementById('lives-container');
-            container.innerHTML = '';
-            for (let i = 0; i < lives; i++) {
-                const heart = document.createElement('img');
-                heart.src = 'heart.png';
-                heart.alt = 'Nyawa';
-                container.appendChild(heart);
-            }
-        }
-
-        function checkAnswer() {
-            const answer1 = document.getElementById('answer1').value.trim().toLowerCase();
-            const answer2 = document.getElementById('answer2').value.trim().toLowerCase();
-            const correctAnswers = questions[currentQuestionIndex].answer.map(a => a.toLowerCase());
-
-            if (correctAnswers.includes(answer1) && correctAnswers.includes(answer2)) {
-                score += 20;
-                currentQuestionIndex++;
-                if (currentQuestionIndex >= questions.length) {
-                    endQuiz();
-                } else {
-                    loadQuestion();
-                }
-            } else {
-                lives--;
-                updateLives();
-                document.getElementById('error-message').style.display = 'block';
-                if (lives <= 0) {
-                    endQuiz();
-                }
-            }
-            document.getElementById('answer1').value = '';
-            document.getElementById('answer2').value = '';
-        }
-
-        function loadQuestion() {
-            const currentQuestion = questions[currentQuestionIndex];
-            document.getElementById('question').textContent = currentQuestion.question;
-            const translatorLinksContainer = document.getElementById('translator-links-container');
-
-            if (currentQuestion.hasTranslator && currentQuestion.translatorLinks.length > 0) {
-                translatorLinksContainer.style.display = 'block';
-                translatorLinksContainer.innerHTML = '';
-                currentQuestion.translatorLinks.forEach((link, index) => {
-                    const linkElement = document.createElement('a');
-                    linkElement.href = link;
-                    linkElement.target = '_blank';
-                    linkElement.textContent = `Buka Translator ${index + 1}`;
-                    translatorLinksContainer.appendChild(linkElement);
-                });
-            } else {
-                translatorLinksContainer.style.display = 'none';
-            }
-        }
-
-        function endQuiz() {
-            document.getElementById('quiz-container').style.display = 'none';
-            document.getElementById('result-page').style.display = 'block';
-            document.getElementById('result-id').textContent = participantId;
-            document.getElementById('final-score').textContent = score;
-            $.ajax({
-                url: 'save_result.php', // File PHP yang menangani penyimpanan data
-                type: 'POST',
-                data: {
-                    participantId: participantId,
-                    score: score
-                },
-                success: function(response) {
-                    console.log(response); // Debugging untuk melihat respon dari server
-                },
-                error: function(xhr, status, error) {
-                    console.error("Error:", error);
-                }
-            });
-        }
-    
-    </script>
-<Analytics />
 </body>
 </html>
